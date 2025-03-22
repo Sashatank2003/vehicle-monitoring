@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Трекер параметров транспортного средства</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      margin: 0;
+      padding: 20px;
+      background: #f5f5f5;
+    }
+    .container {
+      max-width: 1200px;
+      margin: auto;
+      background: white;
+      padding: 20px;
+      box-shadow: 0 0 10px rgba(0,0,0,0.1);
+    }
+    h1, h2 {
+      text-align: center;
+    }
+    .section {
+      margin-bottom: 30px;
+    }
+    .params {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+    }
+    .param {
+      border: 1px solid #ccc;
+      padding: 10px;
+      margin: 5px;
+      width: 150px;
+      text-align: center;
+      background: #fafafa;
+    }
+    /* Подсветка при превышении порога */
+    .alert {
+      border: 2px solid red;
+      background: #ffe6e6;
+    }
+    .thresholds div {
+      margin: 5px 0;
+    }
+    .thresholds input {
+      width: 100px;
+    }
+    /* Стили для контейнера графиков */
+    #chartsContainer {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: space-around;
+    }
+    .chart-item {
+      flex: 1;
+      min-width: 300px;
+      margin: 10px;
+    }
+  </style>
+</head>
+<body>
+<div class="container">
+  <h1>Трекер параметров транспортного средства</h1>
+  
+  <!-- Выбор транспортного средства -->
+  <div class="section">
+    <label for="vehicleSelect">Выберите ТС: </label>
+    <select id="vehicleSelect">
+      <option value="vehicle1">ТС 1</option>
+      <option value="vehicle2">ТС 2</option>
+      <option value="vehicle3">ТС 3</option>
+    </select>
+  </div>
+  
+  <!-- Отображение параметров в реальном времени -->
+  <div class="section">
+    <h2>Параметры в реальном времени</h2>
+    <div id="realtimeParams" class="params">
+      <!-- Здесь будут отображаться параметры -->
+    </div>
+  </div>
+  
+  <!-- Графики параметров -->
+  <div class="section">
+    <h2>Графики параметров</h2>
+    <div id="chartsContainer">
+      <div class="chart-item">
+        <canvas id="chartTemperature" width="400" height="200"></canvas>
+      </div>
+      <div class="chart-item">
+        <canvas id="chartVoltage" width="400" height="200"></canvas>
+      </div>
+      <div class="chart-item">
+        <canvas id="chartSpeed" width="400" height="200"></canvas>
+      </div>
+      <div class="chart-item">
+        <canvas id="chartRPM" width="400" height="200"></canvas>
+      </div>
+      <div class="chart-item">
+        <canvas id="chartFuel" width="400" height="200"></canvas>
+      </div>
+    </div>
+    <div style="text-align: center; margin-top: 10px;">
+      <label for="timeInterval">Выберите интервал времени: </label>
+      <select id="timeInterval">
+        <option value="1">Час</option>
+        <option value="24">Сутки</option>
+        <option value="720">Месяц</option>
+      </select>
+      <button id="updateChartBtn">Обновить графики</button>
+    </div>
+  </div>
+  
+  <!-- Установка граничных значений -->
+  <div class="section thresholds">
+    <h2>Установка граничных значений</h2>
+    <div style="text-align: center;">
+      <div>
+        <label for="tempThreshold">Температура (°C): </label>
+        <input type="number" id="tempThreshold" placeholder="Например, 90">
+      </div>
+      <div>
+        <label for="voltageThreshold">Напряжение (V): </label>
+        <input type="number" id="voltageThreshold" placeholder="Например, 14">
+      </div>
+      <div>
+        <label for="speedThreshold">Скорость (км/ч): </label>
+        <input type="number" id="speedThreshold" placeholder="Например, 120">
+      </div>
+      <div>
+        <label for="rpmThreshold">Обороты (RPM): </label>
+        <input type="number" id="rpmThreshold" placeholder="Например, 4000">
+      </div>
+      <div>
+        <label for="fuelThreshold">Расход топлива (л/100км): </label>
+        <input type="number" id="fuelThreshold" placeholder="Например, 15">
+      </div>
+      <button id="setThresholdBtn">Установить пороги</button>
+    </div>
+  </div>
+</div>
+
+<!-- Подключение Chart.js через CDN -->
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+// Функция для генерации случайных значений в заданном диапазоне
+function getRandomParam(min, max) {
+  return parseFloat((Math.random() * (max - min) + min).toFixed(2));
+}
+
+// Инициализация параметров
+let parameters = {
+  temperature: getRandomParam(70, 100),
+  voltage: getRandomParam(12, 14),
+  speed: getRandomParam(0, 120),
+  rpm: getRandomParam(800, 4000),
+  fuelConsumption: getRandomParam(5, 15),
+  latitude: getRandomParam(55, 56),
+  longitude: getRandomParam(37, 38)
+};
+
+// Единицы измерения для каждого параметра
+const paramUnits = {
+  temperature: "°C",
+  voltage: "V",
+  speed: "км/ч",
+  rpm: "RPM",
+  fuelConsumption: "л/100км",
+  latitude: "°",
+  longitude: "°"
+};
+
+// Объект для хранения граничных значений (для параметров, кроме координат)
+let thresholds = {
+  temperature: null,
+  voltage: null,
+  speed: null,
+  rpm: null,
+  fuelConsumption: null
+};
+
+// Обновление отображения параметров в реальном времени с единицами измерения
+function updateRealtimeParams() {
+  // Эмуляция обновления данных
+  parameters.temperature = getRandomParam(70, 100);
+  parameters.voltage = getRandomParam(12, 14);
+  parameters.speed = getRandomParam(0, 120);
+  parameters.rpm = getRandomParam(800, 4000);
+  parameters.fuelConsumption = getRandomParam(5, 15);
+  parameters.latitude = getRandomParam(55, 56);
+  parameters.longitude = getRandomParam(37, 38);
+  
+  const container = document.getElementById('realtimeParams');
+  container.innerHTML = '';
+  
+  const paramNames = {
+    temperature: 'Температура',
+    voltage: 'Напряжение',
+    speed: 'Скорость',
+    rpm: 'Обороты',
+    fuelConsumption: 'Расход топлива',
+    latitude: 'Широта',
+    longitude: 'Долгота'
+  };
+  
+  // Создаём блок для каждого параметра и добавляем единицы измерения
+  for (let key in parameters) {
+    let paramDiv = document.createElement('div');
+    paramDiv.className = 'param';
+    
+    // Применяем проверку только для параметров с заданными порогами
+    if(thresholds[key] !== null && parameters[key] > thresholds[key]) {
+      paramDiv.classList.add('alert');
+    }
+    
+    paramDiv.innerHTML = '<strong>' + paramNames[key] + '</strong><br>' 
+                         + parameters[key] + ' ' + (paramUnits[key] ? paramUnits[key] : '');
+    container.appendChild(paramDiv);
+  }
+}
+
+// Генерация меток по оси X в зависимости от выбранного интервала времени
+function generateLabels(intervalType) {
+  let labels = [];
+  let now = new Date();
+  
+  if(intervalType === "1") {
+    // Час: 12 точек, каждые 5 минут
+    for (let i = 0; i < 12; i++){
+      let labelTime = new Date(now.getTime() + i * 5 * 60000);
+      let hours = labelTime.getHours().toString().padStart(2, '0');
+      let minutes = labelTime.getMinutes().toString().padStart(2, '0');
+      labels.push(hours + ':' + minutes);
+    }
+  } else if(intervalType === "24") {
+    // Сутки: 24 точки, почасово (начиная с полуночи)
+    let start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
+    for (let i = 0; i < 24; i++){
+      let labelTime = new Date(start.getTime() + i * 60 * 60000);
+      let hours = labelTime.getHours().toString().padStart(2, '0');
+      let minutes = labelTime.getMinutes().toString().padStart(2, '0');
+      labels.push(hours + ':' + minutes);
+    }
+  } else if(intervalType === "720") {
+    // Месяц: 30 точек, каждый день (формат ДД.ММ)
+    let start = new Date(now.getFullYear(), now.getMonth(), 1);
+    for (let i = 0; i < 30; i++){
+      let labelTime = new Date(start.getTime() + i * 24 * 60 * 60000);
+      let day = labelTime.getDate().toString().padStart(2, '0');
+      let month = (labelTime.getMonth() + 1).toString().padStart(2, '0');
+      labels.push(day + '.' + month);
+    }
+  }
+  return labels;
+}
+
+// Объект для хранения экземпляров графиков
+let charts = {};
+
+// Обновление всех графиков (по одному для каждого параметра)
+function updateChart() {
+  const intervalType = document.getElementById('timeInterval').value;
+  const labels = generateLabels(intervalType);
+  const dataCount = labels.length;
+  
+  // Настройки для каждого графика
+  const chartParams = {
+    temperature: {
+      canvasId: "chartTemperature",
+      label: "Температура (°C)",
+      color: "red",
+      min: 70, max: 100
+    },
+    voltage: {
+      canvasId: "chartVoltage",
+      label: "Напряжение (V)",
+      color: "blue",
+      min: 12, max: 14
+    },
+    speed: {
+      canvasId: "chartSpeed",
+      label: "Скорость (км/ч)",
+      color: "green",
+      min: 0, max: 120
+    },
+    rpm: {
+      canvasId: "chartRPM",
+      label: "Обороты (RPM)",
+      color: "orange",
+      min: 800, max: 4000
+    },
+    fuelConsumption: {
+      canvasId: "chartFuel",
+      label: "Расход топлива (л/100км)",
+      color: "purple",
+      min: 5, max: 15
+    }
+  };
+  
+  // Для каждого параметра создаём или обновляем график
+  for (let key in chartParams) {
+    const param = chartParams[key];
+    let data = [];
+    for (let i = 0; i < dataCount; i++) {
+      data.push(getRandomParam(param.min, param.max));
+    }
+    const ctx = document.getElementById(param.canvasId).getContext('2d');
+    if (charts[key]) {
+      charts[key].destroy();
+    }
+    charts[key] = new Chart(ctx, {
+      type: 'line',
+      data: {
+        labels: labels,
+        datasets: [{
+          label: param.label,
+          data: data,
+          borderColor: param.color,
+          fill: false,
+          tension: 0.1
+        }]
+      },
+      options: {
+        responsive: true,
+        plugins: {
+          title: {
+            display: true,
+            text: param.label
+          }
+        },
+        scales: {
+          x: {
+            title: {
+              display: true,
+              text: 'Время'
+            }
+          },
+          y: {
+            title: {
+              display: true,
+              text: 'Значение'
+            }
+          }
+        }
+      }
+    });
+  }
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateRealtimeParams();
+  updateChart();
+  
+  // Обновление данных параметров каждую секунду
+  setInterval(updateRealtimeParams, 1000);
+  
+  // Обновление графиков по кнопке
+  document.getElementById('updateChartBtn').addEventListener('click', updateChart);
+  
+  // Установка граничных значений для параметров
+  document.getElementById('setThresholdBtn').addEventListener('click', () => {
+    thresholds.temperature = document.getElementById('tempThreshold').value ? parseFloat(document.getElementById('tempThreshold').value) : null;
+    thresholds.voltage = document.getElementById('voltageThreshold').value ? parseFloat(document.getElementById('voltageThreshold').value) : null;
+    thresholds.speed = document.getElementById('speedThreshold').value ? parseFloat(document.getElementById('speedThreshold').value) : null;
+    thresholds.rpm = document.getElementById('rpmThreshold').value ? parseFloat(document.getElementById('rpmThreshold').value) : null;
+    thresholds.fuelConsumption = document.getElementById('fuelThreshold').value ? parseFloat(document.getElementById('fuelThreshold').value) : null;
+    
+    alert('Пороги установлены');
+  });
+});
+</script>
+<script>
+  const socket = new WebSocket("ws://localhost:8080/ws");
+
+  socket.onmessage = function(event) {
+    const data = JSON.parse(event.data);
+
+    // Обновляем параметры в интерфейсе
+    document.getElementById("realtimeParams").innerHTML = `
+      <div class="param"><strong>Температура</strong><br>${data.temperature.toFixed(2)} °C</div>
+      <div class="param"><strong>Напряжение</strong><br>${data.voltage.toFixed(2)} V</div>
+      <div class="param"><strong>Скорость</strong><br>${data.speed.toFixed(2)} км/ч</div>
+      <div class="param"><strong>Обороты</strong><br>${data.rpm.toFixed(2)} RPM</div>
+      <div class="param"><strong>Расход топлива</strong><br>${data.fuelConsumption.toFixed(2)} л/100км</div>
+    `;
+  };
+
+  socket.onerror = function(error) {
+    console.error("WebSocket Error:", error);
+  };
+</script>
+</body>
+</html>
